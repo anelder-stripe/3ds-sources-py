@@ -1,0 +1,177 @@
+<html>
+<head>
+  <title>3DS IFRAME Redirect Example</title>
+
+  <!-- (Optional) Disable the favicon.ico requests -->
+  <link rel="shortcut icon" href="data:image/x-icon;," type="image/x-icon">
+
+  <!-- Import External Dependencies -->
+  <script src="https://ajax.googleapis.com/ajax/libs/jquery/2.2.4/jquery.min.js"></script>
+  <script type="text/javascript" src="https://js.stripe.com/v2/"></script>
+
+  <!-- Stripe Configuration -->
+  <script>
+    Stripe.setPublishableKey('{{ STRIPE_PUBLISHABLE_KEY }}');
+  </script>
+
+  <script>
+
+    $(document).ready(function () {
+
+      function createCardSource() {
+        Stripe.source.create({
+          type: 'card',
+          card: {
+            number: $('#card-form .card-number').val(),
+            cvc: $('#card-form .card-cvc').val(),
+            exp_month: $('#card-form .card-expiry-month').val(),
+            exp_year: $('#card-form .card-expiry-year').val(),
+          },
+          owner: {
+            address: {
+              postal_code: $('#card-form .address-zipcode').val()
+            }
+          }
+        }, handleCardResponse);
+      }
+
+      function handleCardResponse(status, response) {
+
+        if (response.error) { // Problem!
+
+          // Show the errors on the form
+          $('#card-form .payment-errors').text(response.error.message);
+
+        } else { // Source was created!
+
+          // Print the results (for no real good reason)
+          $('#card-source').html(JSON.stringify(response, null, ' '))
+
+          // Make a 3DS Source from the Card Source
+          create3DSSource(response.id);
+
+        }
+
+      }
+
+      function create3DSSource(source) {
+        Stripe.source.create({
+          type: 'three_d_secure',
+          amount: 1099,
+          currency: "eur",
+          three_d_secure: {
+            card: source
+          },
+          redirect: {
+            return_url: "http://localhost:5000/redirect_complete"
+          }
+        }, handle3DSResponse);
+      }
+
+      function handle3DSResponse(status, response) {
+
+        if (response.error) { // Problem!
+
+          // Show the errors on the form
+          $('#card-form .payment-errors').text(response.error.message);
+
+        } else { // Source was created!
+
+          // Print the results (for no real good reason)
+          $('#3ds-source').html(JSON.stringify(response, null, ' '))
+
+          // Start Polling
+          start3DSFlow(
+            response.id,
+            response.client_secret,
+            response.redirect.url
+          );
+
+        }
+
+      }
+
+      function start3DSFlow(source_id, client_secret, card_redirect_url) {
+        $('#iframe-container').html("");
+        $('#iframe-container').html('<iframe src="' + card_redirect_url + '" style="width: 100%; height: 300px;"></iframe>');
+        Stripe.source.poll(
+          source_id,
+          client_secret,
+          function(status, source) {
+            // `source`: is the source object.
+            // `status`: is the HTTP status. if non 200, an error occured
+            //          and the poll is canceled.
+
+            if (source.status === "chargeable") {
+                $('#iframe-container').html("Source is chargeable.  Beginning charging phase.");
+                startChargeProcess(source.id);
+            }
+
+            // You should handle the other status values here too!
+
+          }
+        )
+      }
+
+      function startChargeProcess(source_id) {
+        $.post("/charge", {
+          "token": source_id
+        })
+        .done(function(response) {  // Successfully processed transaction
+          $("#charge-response").html(JSON.stringify(response, null, ' '));
+        })
+        .fail(function (response) {  // Failure to create charge
+          $("#charge-response").html("Unable to create Charge in Stripe.");
+        });
+      }
+
+      $('#card-form').submit(function (e) {
+        e.preventDefault();
+        createCardSource();
+      });
+
+    });
+
+  </script>
+
+</head>
+<body>
+
+  <!-- Payment Form -->
+  <form id="card-form" action="/charge" method="POST">
+
+    <div class="payment-errors"></div>
+
+    <label for="card-number">Credit Card Number</label>
+    <input placeholder="1234 5678 9012 3456" pattern="[0-9]*" type="text" class="card-number"><br />
+
+    <label for="card-number">Expiration Date</label>
+    <input placeholder="MM" pattern="[0-9]*" type="text" class="card-expiry-month" size=4> / <input placeholder="YY" pattern="[0-9]*" type="text" class="card-expiry-year" size=4><br />
+
+    <label for="card-number">CVV Number</label>
+    <input placeholder="CVC" pattern="[0-9]*" type="text" class="card-cvc" size=4><br />
+
+    <label for="card-number">Postal Code</label>
+    <input placeholder="Postal Code" type="text" class="address-zipcode" size=12>
+
+    <input type="submit" value="Pay Now">
+
+  </form><br /><br />
+
+  <!-- Card Source -->
+  Card Source:<br />
+  <pre id="card-source"></pre><br /><br />
+
+  <!-- 3DS Source -->
+  3DS Source:<br />
+  <pre id="3ds-source"></pre><br /><br />
+
+  <!-- IFRAME -->
+  <div id="iframe-container" style="width: 100%;"></div><br /><br />
+
+  <!-- Charge Response -->
+  Charge Response:<br />
+  <pre id="charge-response"></pre><br /><br />
+
+</body>
+</html>

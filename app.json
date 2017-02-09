@@ -1,0 +1,16 @@
+{
+  "name": "3DS Example",
+  "description": "3DS Example on Stripe with Sources API in Python (Flask).",
+  "repository": "https://github.com/anelder-stripe/3ds-sources-py",
+  "keywords": ["flask", "python", "stripe"],
+  "env": {
+    "STRIPE_PUBLISHABLE_KEY": {
+      "description": "Find this at https://dashboard.stripe.com/account/apikeys (it'll look like pk_test_****)",
+      "required": true
+    },
+    "STRIPE_SECRET_KEY": {
+      "description": "Find this at https://dashboard.stripe.com/account/apikeys (it'll look like sk_test_****)",
+      "required": true
+    }
+  }
+}
