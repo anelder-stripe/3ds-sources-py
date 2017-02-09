@@ -47,4 +47,4 @@ if __name__ == "__main__":
     if not STRIPE_PUBLISHABLE_KEY:
         raise ValueError("Please pass the `STRIPE_PUBLISHABLE_KEY` envionment variable.")
 
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    app.run(host='0.0.0.0', port=os.environ.get('PORT', 5000), debug=True)
